@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.ryuu'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+//    // https://mvnrepository.com/artifact/org.projectlombok/lombok
+//    compileOnly 'org.projectlombok:lombok:1.18.26'
+//    // https://mvnrepository.com/artifact/org.projectlombok/lombok
+//    annotationProcessor 'org.projectlombok:lombok:1.18.26'
+    // https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    // https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-engine
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    // https://jitpack.io/#Ryuu-64/functional
+    implementation 'com.github.Ryuu-64:functional:1.1.1'
+}
+
+test {
+    useJUnitPlatform()
+}
