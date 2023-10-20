@@ -2,6 +2,8 @@ package org.ryuu;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class PromiseTest {
@@ -164,6 +166,27 @@ class PromiseTest {
                     return 1;
                 },
                 reason -> 42
+        );
+    }
+
+    /**
+     * TODO
+     */
+    @Test
+    void all() {
+        Promise.all(Arrays.asList(
+                new Promise<>((resolve, reject) -> resolve.invoke(42)),
+                new Promise<>((resolve, reject) -> resolve.invoke(42)),
+                new Promise<>((resolve, reject) -> resolve.invoke(42))
+        )).then(
+                result -> {
+                    for (Object o : result) {
+                        System.out.println(o);
+                    }
+                },
+                reason -> {
+                    System.out.println("reason");
+                }
         );
     }
 }
