@@ -1,11 +1,7 @@
 package org.ryuu;
 
-import org.ryuu.functional.Action1Arg;
-import org.ryuu.functional.Action2Args;
-import org.ryuu.functional.Func1Arg;
-import org.ryuu.functional.Funcs1Arg;
+import org.ryuu.functional.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.ryuu.Promise.Status.*;
@@ -25,29 +21,29 @@ public class Promise<T> {
         }
     }
 
-    public static Promise<List<Object>> all(List<Promise<Object>> promises) {
-        final int promiseCount = promises.size();
-        int[] resultCount = {0};
-        List<Object> resultList = new ArrayList<>();
-        return new Promise<>((resolve, reject) -> {
-            for (int i = 0; i < promiseCount; i++) {
-                Promise<Object> promise = promises.get(i);
-                int finalI = i;
-                promise.then(
-                        result -> {
-                            resultList.set(finalI, result);
-                            resultCount[0]++;
-                            if (resultCount[0] == promiseCount) {
-                                resolve.invoke(resultList);
-                            }
-                        },
-                        reject
-                );
-            }
-        });
+    //region then
+    @SuppressWarnings("UnusedReturnValue")
+    public <R> Promise<R> then(Action1Arg<T> onFulfilled, Func1Arg<Object, Object> onRejected) {
+        return then(
+                result -> {
+                    onFulfilled.invoke(result);
+                    return null;
+                },
+                onRejected
+        );
     }
 
-    //region then
+    @SuppressWarnings("UnusedReturnValue")
+    public <R> Promise<R> then(Func1Arg<T, R> onFulfilled, Action1Arg<Object> onRejected) {
+        return then(
+                onFulfilled,
+                reason -> {
+                    onRejected.invoke(reason);
+                    return null;
+                }
+        );
+    }
+
     @SuppressWarnings("UnusedReturnValue")
     public <R> Promise<R> then(Action1Arg<T> onFulfilled, Action1Arg<Object> onRejected) {
         return then(
@@ -71,7 +67,8 @@ public class Promise<T> {
                     resolve.invoke(result);
                     break;
                 case REJECTED:
-                    onRejected.invoke(reason);
+                    Object reason = onRejected.invoke(this.reason);
+                    reject.invoke(reason);
                     break;
                 case PENDING:
                     thenResolve.add((Func1Arg<T, Object>) onFulfilled);
@@ -81,6 +78,41 @@ public class Promise<T> {
         });
     }
     //endregion
+
+    public Promise<T> finallyResolve(Action action) {
+        return then(
+                value -> {
+                    action.invoke();
+                    return value;
+                },
+                reason -> {
+                    action.invoke();
+                    return reason;
+                }
+        );
+    }
+
+    public static Promise<Object[]> all(List<Promise<Object>> promises) {
+        final int promiseCount = promises.size();
+        int[] resultCount = {0};
+        Object[] resultList = new Object[promiseCount];
+        return new Promise<>((resolve, reject) -> {
+            for (int i = 0; i < promiseCount; i++) {
+                Promise<Object> promise = promises.get(i);
+                int finalI = i;
+                promise.then(
+                        result -> {
+                            resultList[finalI] = result;
+                            resultCount[0]++;
+                            if (resultCount[0] == promiseCount) {
+                                resolve.invoke(resultList);
+                            }
+                        },
+                        reject
+                );
+            }
+        });
+    }
 
     private void resolve(T result) {
         if (status != PENDING) {
