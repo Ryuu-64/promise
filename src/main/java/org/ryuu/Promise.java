@@ -6,24 +6,24 @@ import java.util.List;
 
 import static org.ryuu.Promise.Status.*;
 
-public class Promise<T> {
+public class Promise {
     private Status status = PENDING;
-    private T result;
+    private Object result;
     private Object reason;
-    private final Funcs1Arg<T, Object> thenResolve = new Funcs1Arg<>();
+    private final Funcs1Arg<Object, Object> thenResolve = new Funcs1Arg<>();
     private final Funcs1Arg<Object, Object> thenReject = new Funcs1Arg<>();
 
-    public Promise(Action2Args<Action1Arg<T>, Action1Arg<Object>> executor) {
+    public Promise(Action2Args<Action1Arg<Object>, Action1Arg<Object>> executor) {
         try {
-            executor.invoke(this::resolve, this::reject);
+            executor.invoke(this::doResolve, this::doReject);
         } catch (Exception e) {
-            reject(e);
+            doReject(e);
         }
     }
 
     //region then
     @SuppressWarnings("UnusedReturnValue")
-    public <R> Promise<R> then(Action1Arg<T> onFulfilled, Func1Arg<Object, Object> onRejected) {
+    public Promise then(Action1Arg<Object> onFulfilled, Func1Arg<Object, Object> onRejected) {
         return then(
                 result -> {
                     onFulfilled.invoke(result);
@@ -34,7 +34,7 @@ public class Promise<T> {
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    public <R> Promise<R> then(Func1Arg<T, R> onFulfilled, Action1Arg<Object> onRejected) {
+    public Promise then(Func1Arg<Object, Object> onFulfilled, Action1Arg<Object> onRejected) {
         return then(
                 onFulfilled,
                 reason -> {
@@ -45,7 +45,7 @@ public class Promise<T> {
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    public <R> Promise<R> then(Action1Arg<T> onFulfilled, Action1Arg<Object> onRejected) {
+    public Promise then(Action1Arg<Object> onFulfilled, Action1Arg<Object> onRejected) {
         return then(
                 result -> {
                     onFulfilled.invoke(result);
@@ -58,20 +58,23 @@ public class Promise<T> {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    public <R> Promise<R> then(Func1Arg<T, R> onFulfilled, Func1Arg<Object, Object> onRejected) {
-        return new Promise<>((resolve, reject) -> {
+    public Promise then(Func1Arg<Object, Object> onFulfilled, Func1Arg<Object, Object> onRejected) {
+        return new Promise((resolve, reject) -> {
             switch (status) {
                 case FULFILLED:
-                    R result = onFulfilled.invoke(this.result);
-                    resolve.invoke(result);
+                    Object result = onFulfilled.invoke(this.result);
+                    if (result instanceof Promise) {
+                        ((Promise) result).then(resolve, reject);
+                    } else {
+                        resolve.invoke(result);
+                    }
                     break;
                 case REJECTED:
                     Object reason = onRejected.invoke(this.reason);
                     reject.invoke(reason);
                     break;
                 case PENDING:
-                    thenResolve.add((Func1Arg<T, Object>) onFulfilled);
+                    thenResolve.add(onFulfilled);
                     thenReject.add(onRejected);
                     break;
             }
@@ -79,7 +82,7 @@ public class Promise<T> {
     }
     //endregion
 
-    public Promise<T> finallyResolve(Action action) {
+    public Promise finallyResolve(Action action) {
         return then(
                 value -> {
                     action.invoke();
@@ -92,13 +95,13 @@ public class Promise<T> {
         );
     }
 
-    public static Promise<Object[]> all(List<Promise<Object>> promises) {
+    public static Promise all(List<Promise> promises) {
         final int promiseCount = promises.size();
         int[] resultCount = {0};
         Object[] resultList = new Object[promiseCount];
-        return new Promise<>((resolve, reject) -> {
+        return new Promise((resolve, reject) -> {
             for (int i = 0; i < promiseCount; i++) {
-                Promise<Object> promise = promises.get(i);
+                Promise promise = promises.get(i);
                 int finalI = i;
                 promise.then(
                         result -> {
@@ -114,17 +117,31 @@ public class Promise<T> {
         });
     }
 
-    private void resolve(T result) {
+    public static <T> Promise resolve(T result) {
+        return new Promise((resolve, reject) -> resolve.invoke(result));
+    }
+
+    private void doResolve(Object result) {
         if (status != PENDING) {
             return;
         }
 
         status = FULFILLED;
-        this.result = result;
-        thenResolve.invoke(result);
+        if (result instanceof Promise) {
+            ((Promise) result).then(
+                    resultsResult -> {
+                        this.result = resultsResult;
+                        thenResolve.invoke(result);
+                    },
+                    this::doReject
+            );
+        } else {
+            this.result = result;
+            thenResolve.invoke(result);
+        }
     }
 
-    private void reject(Object reason) {
+    private void doReject(Object reason) {
         if (status != PENDING) {
             return;
         }

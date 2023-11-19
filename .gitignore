@@ -37,8 +37,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
-
-.gradle
 **/build/
 !src/**/build/
 
@@ -56,6 +54,4 @@ gradle-app.setting
 
 # Eclipse Gradle plugin generated files
 # Eclipse Core
-.project
 # JDT-specific (Eclipse Java Development Tools)
-.classpath

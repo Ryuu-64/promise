@@ -14,21 +14,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class PromiseTest {
     @Test
     void executorException() {
-        new Promise<>((resolve, reject) -> {
-            throw new RuntimeException("executor exception");
+        RuntimeException exception = new RuntimeException("executor exception");
+        new Promise((resolve, reject) -> {
+            throw exception;
         }).then(
                 value -> {
                     fail();
                 },
                 reason -> {
-                    ((Throwable) reason).printStackTrace();
+                    assertEquals(exception, reason);
                 }
         );
     }
 
     @Test
     void thenException() {
-        new Promise<>(
+        new Promise(
                 (resolve, reject) -> resolve.invoke(42)
         ).then(
                 (Action1Arg<Object>) value -> {
@@ -40,14 +41,14 @@ class PromiseTest {
                     fail();
                 },
                 reason -> {
-                    ((Throwable) reason).printStackTrace();
+                    System.out.println(reason);
                 }
         );
     }
 
     @Test
     void resolveReject() {
-        new Promise<>((resolve, reject) -> {
+        new Promise((resolve, reject) -> {
             resolve.invoke(42);
             reject.invoke(42);
         }).then(
@@ -62,7 +63,7 @@ class PromiseTest {
 
     @Test
     void rejectResolve() {
-        new Promise<>((resolve, reject) -> {
+        new Promise((resolve, reject) -> {
             reject.invoke(42);
             resolve.invoke(42);
         }).then(
@@ -77,7 +78,7 @@ class PromiseTest {
 
     @Test
     void resolveThen() {
-        new Promise<>(
+        new Promise(
                 (resolve, reject) -> resolve.invoke(42)
         ).then(
                 value -> {
@@ -90,7 +91,7 @@ class PromiseTest {
 
     @Test
     void rejectThen() {
-        new Promise<>(
+        new Promise(
                 (resolve, reject) -> reject.invoke(42)
         ).then(
                 value -> 42,
@@ -102,7 +103,7 @@ class PromiseTest {
 
     @Test
     void chainCallThen() {
-        new Promise<>(
+        new Promise(
                 (resolve, reject) -> resolve.invoke(42)
         ).then(
                 value -> {
@@ -121,7 +122,7 @@ class PromiseTest {
 
     @Test
     void parallelCallThen() {
-        Promise<Integer> promise = new Promise<>(
+        Promise promise = new Promise(
                 (resolve, reject) -> resolve.invoke(42)
         );
         promise.then(
@@ -132,11 +133,13 @@ class PromiseTest {
                     assertEquals("foo", value);
                     return 42;
                 },
-                reason -> 42
+                reason -> {
+                }
         );
         promise.then(
                 value -> true,
-                reason -> 42
+                reason -> {
+                }
         ).then(
                 value -> {
                     assertTrue(true);
@@ -147,18 +150,56 @@ class PromiseTest {
     }
 
     @Test
+    void promiseInPromise() {
+        Promise promiseInPromise = new Promise(
+                (resolve, reject) -> resolve.invoke("foo")
+        );
+        new Promise(
+                (resolve, reject) -> resolve.invoke(promiseInPromise)
+        ).then(
+                value -> {
+                    assertEquals("foo", value);
+                },
+                reason -> {
+                }
+        );
+    }
+
+    @Test
+    void promiseInThen() {
+        Promise promise = new Promise(
+                (resolve, reject) -> resolve.invoke("foo")
+        );
+        new Promise(
+                (resolve, reject) -> resolve.invoke("bar")
+        ).then(
+                value -> promise,
+                reason -> {
+                }
+        ).then(
+                value -> {
+                    assertEquals("foo", value);
+                },
+                reason -> {
+                }
+        );
+    }
+
+    @Test
     void thenWithDifferentTypes() {
-        new Promise<>(
-                (resolve, reject) -> resolve.invoke(42)
+        int inputValue = 42;
+        new Promise(
+                (resolve, reject) -> resolve.invoke(inputValue)
         ).then(
                 value -> {
                     assertEquals(42, value);
                     return true;
                 },
-                reason -> 42
+                reason -> {
+                }
         ).then(
                 value -> {
-                    assertTrue(value);
+                    assertTrue((Boolean) value);
                 },
                 reason -> {
                 }
@@ -170,14 +211,14 @@ class PromiseTest {
         Object[] expectedResults = new Object[]{"foo", 42, "bar"};
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
         Promise.all(Arrays.asList(
-                new Promise<>((resolve, reject) -> resolve.invoke("foo")),
-                new Promise<>((resolve, reject) -> executor.schedule(
+                new Promise((resolve, reject) -> resolve.invoke("foo")),
+                new Promise((resolve, reject) -> executor.schedule(
                         () -> resolve.invoke(42), 1, TimeUnit.SECONDS
                 )),
-                new Promise<>((resolve, reject) -> resolve.invoke("bar"))
+                new Promise((resolve, reject) -> resolve.invoke("bar"))
         )).then(
                 result -> {
-                    assertArrayEquals(expectedResults, result);
+                    assertArrayEquals(expectedResults, (Object[]) result);
                 },
                 reason -> {
                     System.out.println("reason");
@@ -199,12 +240,15 @@ class PromiseTest {
     void finallyResolve() {
         int expectedResult = 2;
         int[] result = {0};
-        new Promise<>(
+        Promise promise = new Promise(
                 (resolve, reject) -> resolve.invoke(42)
-        ).finallyResolve(
+        );
+        Promise finallyResolvePromise = promise.finallyResolve(
                 () -> result[0]++
-        ).then(
+        );
+        finallyResolvePromise.then(
                 value -> {
+                    System.out.println(value);
                     result[0]++;
                     assertEquals(42, value);
                 },
@@ -219,7 +263,7 @@ class PromiseTest {
         int expectedResult = 2;
         int[] result = {0};
         Object originalReason = new RuntimeException("finallyResolveException");
-        new Promise<>(
+        new Promise(
                 (resolve, reject) -> reject.invoke(originalReason)
         ).finallyResolve(
                 () -> result[0]++
@@ -232,5 +276,20 @@ class PromiseTest {
                 }
         );
         assertEquals(expectedResult, result[0]);
+    }
+
+    @Test
+    void resolve() {
+        int exceptedValue = 42;
+        Promise
+                .resolve(exceptedValue)
+                .then(
+                        value -> {
+                            assertEquals(exceptedValue, value);
+                        },
+                        reason -> {
+                            fail();
+                        }
+                );
     }
 }
